@@ -1,7 +1,7 @@
 /**
  * PR page content script.
  * Runs only when the PR has the label "PR Published on S3".
- * Finds "Build and publish" run link and shows a button/link that opens it in a new tab.
+ * Shows "Open Collibra with PR build" and uses Build and publish run URL when needed.
  * Hides the UI when user navigates away from the PR (SPA navigation).
  */
 (function () {
@@ -71,28 +71,13 @@
       "position:fixed;top:60px;right:16px;z-index:9999;padding:10px 14px;background:#fff;border:1px solid #d0d7de;border-radius:6px;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,0.1);";
     const linkStyle =
       "display:inline-block;padding:6px 12px;background:#0969da;color:#fff;border-radius:6px;text-decoration:none;font-weight:500;margin-right:8px;margin-bottom:6px;";
-    if (runUrl) {
-      const link = document.createElement("a");
-      link.href = runUrl;
-      link.target = "_blank";
-      link.rel = "noopener";
-      link.textContent = "Open Build and publish logs";
-      link.style.cssText = linkStyle;
-      link.addEventListener("mouseenter", function () {
-        link.style.background = "#0550ae";
-      });
-      link.addEventListener("mouseleave", function () {
-        link.style.background = "#0969da";
-      });
-      wrap.appendChild(link);
-    }
     const prNumber = getPrNumberFromPathname();
     if (prNumber && hasRequiredLabel) {
       const infraLink = document.createElement("a");
       infraLink.href = infraBase + "/?pr=" + prNumber;
       infraLink.target = "_blank";
       infraLink.rel = "noopener";
-      infraLink.textContent = "Open Infra with PR build";
+      infraLink.textContent = "Open Collibra with PR build";
       infraLink.style.cssText = linkStyle;
       infraLink.addEventListener("click", function (e) {
         e.preventDefault();
