@@ -104,13 +104,17 @@
       if (msg.runtimeJs) q += "&runtimeJs=" + encodeURIComponent(msg.runtimeJs);
       if (msg.mainJs) q += "&mainJs=" + encodeURIComponent(msg.mainJs);
       if (msg.mainCss) q += "&mainCss=" + encodeURIComponent(msg.mainCss);
-      chrome.tabs.create(
-        { url: "https://infra-main.collibra.dev/?" + q },
-        function (tab) {
+      chrome.storage.local.get("defaultInfraUrl", function (data) {
+        var base =
+          (data.defaultInfraUrl && data.defaultInfraUrl.trim()) ||
+          "https://infra-main.collibra.dev";
+        base = base.replace(/\/?$/, "");
+        var url = base + "/?" + q;
+        chrome.tabs.create({ url: url }, function (tab) {
           if (tab && tab.id) activeTabId = tab.id;
-        },
-      );
-      sendResponse({ ok: true });
+        });
+        sendResponse({ ok: true });
+      });
       return true;
     }
     if (msg.type !== "preparePrRedirects") return;

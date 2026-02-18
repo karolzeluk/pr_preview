@@ -57,7 +57,12 @@
     return m ? m[1] : null;
   }
 
-  function showPrUi(runUrl, hasRequiredLabel) {
+  const DEFAULT_INFRA_URL = "https://infra-main.collibra.dev";
+
+  function showPrUi(runUrl, hasRequiredLabel, defaultInfraUrl) {
+    defaultInfraUrl =
+      (defaultInfraUrl && defaultInfraUrl.trim()) || DEFAULT_INFRA_URL;
+    var infraBase = defaultInfraUrl.replace(/\/?$/, "");
     const id = "pr-build-hashes-ui";
     if (document.getElementById(id)) return;
     const wrap = document.createElement("div");
@@ -84,7 +89,7 @@
     const prNumber = getPrNumberFromPathname();
     if (prNumber && hasRequiredLabel) {
       const infraLink = document.createElement("a");
-      infraLink.href = "https://infra-main.collibra.dev/?pr=" + prNumber;
+      infraLink.href = infraBase + "/?pr=" + prNumber;
       infraLink.target = "_blank";
       infraLink.rel = "noopener";
       infraLink.textContent = "Open Infra with PR build";
@@ -149,13 +154,23 @@
       return;
     }
     var runUrl = getRunUrlFromDom();
-    showPrUi(runUrl, true);
+    chrome.storage.local.get("defaultInfraUrl", function (data) {
+      var defaultInfraUrl =
+        (data.defaultInfraUrl && data.defaultInfraUrl.trim()) ||
+        DEFAULT_INFRA_URL;
+      showPrUi(runUrl, true, defaultInfraUrl);
+    });
     if (!runUrl) {
       setTimeout(function () {
         if (document.getElementById("pr-build-hashes-ui")) return;
         if (!hasPrPublishedOnS3Label()) return;
         runUrl = getRunUrlFromDom();
-        showPrUi(runUrl, true);
+        chrome.storage.local.get("defaultInfraUrl", function (data) {
+          var defaultInfraUrl =
+            (data.defaultInfraUrl && data.defaultInfraUrl.trim()) ||
+            DEFAULT_INFRA_URL;
+          showPrUi(runUrl, true, defaultInfraUrl);
+        });
       }, 2000);
     }
   }

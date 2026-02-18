@@ -1,15 +1,10 @@
 /**
- * Content script for infra-main.collibra.dev.
+ * Content script for Collibra infra (infra-main.collibra.dev and *.collibra-ops.com).
  * When build filenames are in the URL (from openInfraWithPr), injects a main-world script
  * that rewrites script/link URLs to static.collibra.com so requests are direct (no redirect)
  * and CORS works. Otherwise reads from storage and uses redirect; shows a PR badge.
  */
 (function () {
-  if (
-    !/^https:\/\/infra-main\.collibra\.dev\//.test(window.location.origin + "/")
-  )
-    return;
-
   var params = new URLSearchParams(window.location.search);
   var pr = params.get("pr");
   var runtimeJs = params.get("runtimeJs");

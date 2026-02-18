@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>PR Build Hashes – Options</title>
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 16px; max-width: 480px; }
+    label { display: block; margin-bottom: 4px; font-weight: 500; }
+    input[type="text"] { width: 100%; padding: 8px; margin-bottom: 12px; box-sizing: border-box; }
+    button { padding: 8px 16px; background: #0969da; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
+    button:hover { background: #0550ae; }
+    .status { margin-top: 8px; font-size: 13px; color: #57606a; }
+  </style>
+</head>
+<body>
+  <h2>PR Build Hashes – Options</h2>
+  <label for="defaultInfraUrl">Default URL to open (Infra)</label>
+  <input type="text" id="defaultInfraUrl" placeholder="https://infra-main.collibra.dev">
+  <button id="save">Save</button>
+  <div id="status" class="status"></div>
+  <script src="options.js"></script>
+</body>
+</html>
