@@ -51,16 +51,53 @@
     } catch (e) {}
   }
 
+  function clearPrAndReload() {
+    try {
+      sessionStorage.removeItem(SESSION_KEY);
+    } catch (e) {}
+    chrome.storage.local.remove("currentPrBuild", function () {
+      var url = new URL(window.location.href);
+      url.searchParams.delete("pr");
+      url.searchParams.delete("runtimeJs");
+      url.searchParams.delete("mainJs");
+      url.searchParams.delete("mainCss");
+      var cleanUrl = url.toString();
+      chrome.runtime.sendMessage(
+        { type: "clearPrRedirectsAndReload", cleanUrl: cleanUrl },
+        function () {},
+      );
+    });
+  }
+
   function injectPrBadge(pr) {
     const id = "pr-build-hashes-badge";
     if (document.getElementById(id)) return;
-    const badge = document.createElement("div");
-    badge.id = id;
-    badge.setAttribute("data-pr-badge", "1");
+    const wrap = document.createElement("div");
+    wrap.id = id;
+    wrap.setAttribute("data-pr-badge", "1");
+    wrap.style.cssText =
+      "position:fixed;bottom:8px;right:8px;z-index:999999;font-family:system-ui,sans-serif;display:flex;align-items:center;gap:6px;";
+    const badge = document.createElement("span");
     badge.style.cssText =
-      "position:fixed;bottom:8px;right:8px;border:2px solid red;padding:4px 8px;font-size:12px;z-index:999999;background:white;color:#1d2227;font-family:system-ui,sans-serif;";
+      "border:2px solid red;padding:4px 8px;font-size:12px;background:white;color:#1d2227;";
     badge.textContent = "PR " + pr;
-    document.body.appendChild(badge);
+    wrap.appendChild(badge);
+    const clearBtn = document.createElement("button");
+    clearBtn.textContent = "Clear";
+    clearBtn.style.cssText =
+      "padding:4px 8px;font-size:12px;background:#cf2222;color:white;border:none;border-radius:4px;cursor:pointer;display:none;";
+    clearBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      clearPrAndReload();
+    });
+    wrap.appendChild(clearBtn);
+    wrap.addEventListener("mouseenter", function () {
+      clearBtn.style.display = "block";
+    });
+    wrap.addEventListener("mouseleave", function () {
+      clearBtn.style.display = "none";
+    });
+    document.body.appendChild(wrap);
   }
 
   function applyBuild(pr, build) {

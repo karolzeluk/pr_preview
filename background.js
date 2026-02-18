@@ -70,6 +70,25 @@
   }
 
   chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+    if (msg.type === "clearPrRedirectsAndReload") {
+      removeRedirectRules();
+      var tabId = sender.tab && sender.tab.id;
+      var cleanUrl = msg.cleanUrl;
+      if (!tabId || !cleanUrl) {
+        sendResponse({ ok: false });
+        return true;
+      }
+      chrome.tabs.update(tabId, { url: cleanUrl }, function () {
+        if (chrome.runtime.lastError) {
+          sendResponse({ ok: false });
+          return;
+        }
+        chrome.tabs.reload(tabId, { bypassCache: true }, function () {
+          sendResponse({ ok: true });
+        });
+      });
+      return true;
+    }
     if (msg.type === "openInfraWithPr") {
       var pr = msg.pr;
       if (!pr || (!msg.runtimeJs && !msg.mainJs && !msg.mainCss)) {
