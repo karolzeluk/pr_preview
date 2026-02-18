@@ -1,0 +1,60 @@
+{
+  "manifest_version": 3,
+  "name": "PR Build Hashes",
+  "version": "1.0.0",
+  "description": "Extract runtime and main JS hashes from Build and publish workflow logs on collibra/frontend PRs",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "declarativeNetRequest",
+    "declarativeNetRequestWithHostAccess"
+  ],
+  "host_permissions": [
+    "https://github.com/collibra/frontend/*",
+    "https://infra-main.collibra.dev/*",
+    "https://static.collibra.dev/*","https://static.collibra.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://github.com/collibra/frontend/pull/*"
+      ],
+      "js": [
+        "content-pr.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://github.com/collibra/frontend/actions/runs/*"
+      ],
+      "js": [
+        "inject-fetch-intercept.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://github.com/collibra/frontend/actions/runs/*"
+      ],
+      "js": [
+        "parser.js",
+        "content-run.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://infra-main.collibra.dev/*"
+      ],
+      "js": [
+        "content-infra.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}
