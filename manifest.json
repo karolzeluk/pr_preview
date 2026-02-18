@@ -12,45 +12,28 @@
   "host_permissions": [
     "https://github.com/collibra/frontend/*",
     "https://infra-main.collibra.dev/*",
-    "https://static.collibra.dev/*","https://static.collibra.com/*"
+    "https://static.collibra.dev/*"
   ],
   "content_scripts": [
     {
-      "matches": [
-        "https://github.com/collibra/frontend/pull/*"
-      ],
-      "js": [
-        "content-pr.js"
-      ],
+      "matches": ["https://github.com/collibra/frontend/pull/*"],
+      "js": ["content-pr.js"],
       "run_at": "document_idle"
     },
     {
-      "matches": [
-        "https://github.com/collibra/frontend/actions/runs/*"
-      ],
-      "js": [
-        "inject-fetch-intercept.js"
-      ],
+      "matches": ["https://github.com/collibra/frontend/actions/runs/*"],
+      "js": ["inject-fetch-intercept.js"],
       "run_at": "document_start",
       "world": "MAIN"
     },
     {
-      "matches": [
-        "https://github.com/collibra/frontend/actions/runs/*"
-      ],
-      "js": [
-        "parser.js",
-        "content-run.js"
-      ],
+      "matches": ["https://github.com/collibra/frontend/actions/runs/*"],
+      "js": ["parser.js", "content-run.js"],
       "run_at": "document_idle"
     },
     {
-      "matches": [
-        "https://infra-main.collibra.dev/*"
-      ],
-      "js": [
-        "content-infra.js"
-      ],
+      "matches": ["https://infra-main.collibra.dev/*"],
+      "js": ["content-infra.js"],
       "run_at": "document_start"
     }
   ],

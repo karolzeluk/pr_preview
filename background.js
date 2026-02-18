@@ -12,7 +12,7 @@
   var activeTabId = null;
 
   function makeRedirectRules(pr, runtimeJs, mainJs, mainCss) {
-    const base = "https://static.collibra.com/pr-releases/" + pr + "/";
+    const base = "https://static.collibra.dev/pr-releases/" + pr + "/";
     var rules = [];
     if (runtimeJs) {
       rules.push({
@@ -81,8 +81,12 @@
         removeRuleIds: RULE_IDS_LIST,
         addRules: rules,
       });
+      var q = "pr=" + encodeURIComponent(pr);
+      if (msg.runtimeJs) q += "&runtimeJs=" + encodeURIComponent(msg.runtimeJs);
+      if (msg.mainJs) q += "&mainJs=" + encodeURIComponent(msg.mainJs);
+      if (msg.mainCss) q += "&mainCss=" + encodeURIComponent(msg.mainCss);
       chrome.tabs.create(
-        { url: "https://infra-main.collibra.dev/?pr=" + pr },
+        { url: "https://infra-main.collibra.dev/?" + q },
         function (tab) {
           if (tab && tab.id) activeTabId = tab.id;
         },
