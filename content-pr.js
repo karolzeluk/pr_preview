@@ -1,10 +1,32 @@
 /**
  * PR page content script.
+ * Runs only when the PR has the label "PR Published on S3".
  * Finds "Build and publish" run link and shows a button/link that opens it in a new tab.
+ * Hides the UI when user navigates away from the PR (SPA navigation).
  */
 (function () {
-  if (!/^\/collibra\/frontend\/pull\/\d+/.test(window.location.pathname))
-    return;
+  if (!/^\/collibra\/frontend\/pull\//.test(window.location.pathname)) return;
+
+  const REQUIRED_LABEL = "PR Published on S3";
+  const PR_PAGE_RE = /^\/collibra\/frontend\/pull\/\d+(\/|$)/;
+
+  function isOnPrPage() {
+    return PR_PAGE_RE.test(window.location.pathname);
+  }
+
+  function removePrUi() {
+    var el = document.getElementById("pr-build-hashes-ui");
+    if (el) el.remove();
+  }
+
+  function hasPrPublishedOnS3Label() {
+    var labelEls = document.querySelectorAll('[class*="Label"], [data-name]');
+    for (var i = 0; i < labelEls.length; i++) {
+      var text = (labelEls[i].textContent || "").trim();
+      if (text === REQUIRED_LABEL) return true;
+    }
+    return false;
+  }
 
   function getRunUrlFromDom() {
     const links = document.querySelectorAll(
@@ -35,7 +57,7 @@
     return m ? m[1] : null;
   }
 
-  function showPrUi(runUrl) {
+  function showPrUi(runUrl, hasRequiredLabel) {
     const id = "pr-build-hashes-ui";
     if (document.getElementById(id)) return;
     const wrap = document.createElement("div");
@@ -60,7 +82,7 @@
       wrap.appendChild(link);
     }
     const prNumber = getPrNumberFromPathname();
-    if (prNumber) {
+    if (prNumber && hasRequiredLabel) {
       const infraLink = document.createElement("a");
       infraLink.href = "https://infra-main.collibra.dev/?pr=" + prNumber;
       infraLink.target = "_blank";
@@ -71,25 +93,35 @@
         e.preventDefault();
         var currentRunUrl = getRunUrlFromDom();
         if (currentRunUrl) {
-          chrome.storage.local.set({ openInfraAfterRun: prNumber }, function () {
-            window.open(currentRunUrl, "_blank", "noopener");
-          });
+          chrome.storage.local.set(
+            { openInfraAfterRun: prNumber },
+            function () {
+              window.open(currentRunUrl, "_blank", "noopener");
+            },
+          );
           return;
         }
-        chrome.storage.local.get(["prBuilds", "currentPrBuild"], function (data) {
-          var prBuilds = (data && data.prBuilds) || {};
-          var currentPrBuild = (data && data.currentPrBuild) || null;
-          var build = prBuilds[prNumber] || (currentPrBuild && currentPrBuild.pr === prNumber ? currentPrBuild : null);
-          var msg = { type: "preparePrRedirects", pr: prNumber };
-          if (build && (build.runtimeJs || build.mainJs || build.mainCss)) {
-            msg.runtimeJs = build.runtimeJs;
-            msg.mainJs = build.mainJs;
-            msg.mainCss = build.mainCss;
-          }
-          chrome.runtime.sendMessage(msg, function () {
-            window.open(infraLink.href, "_blank", "noopener");
-          });
-        });
+        chrome.storage.local.get(
+          ["prBuilds", "currentPrBuild"],
+          function (data) {
+            var prBuilds = (data && data.prBuilds) || {};
+            var currentPrBuild = (data && data.currentPrBuild) || null;
+            var build =
+              prBuilds[prNumber] ||
+              (currentPrBuild && currentPrBuild.pr === prNumber
+                ? currentPrBuild
+                : null);
+            var msg = { type: "preparePrRedirects", pr: prNumber };
+            if (build && (build.runtimeJs || build.mainJs || build.mainCss)) {
+              msg.runtimeJs = build.runtimeJs;
+              msg.mainJs = build.mainJs;
+              msg.mainCss = build.mainCss;
+            }
+            chrome.runtime.sendMessage(msg, function () {
+              window.open(infraLink.href, "_blank", "noopener");
+            });
+          },
+        );
       });
       infraLink.addEventListener("mouseenter", function () {
         infraLink.style.background = "#0550ae";
@@ -104,26 +136,78 @@
       wrap.style.color = "#57606a";
     }
     document.body.appendChild(wrap);
-    setTimeout(function () {
-      wrap.remove();
-    }, 15000);
   }
 
-  function run() {
+  function run(retryCount) {
+    retryCount = retryCount || 0;
+    if (!hasPrPublishedOnS3Label()) {
+      if (retryCount < 2) {
+        setTimeout(function () {
+          run(retryCount + 1);
+        }, 2000);
+      }
+      return;
+    }
     var runUrl = getRunUrlFromDom();
-    showPrUi(runUrl);
+    showPrUi(runUrl, true);
     if (!runUrl) {
       setTimeout(function () {
         if (document.getElementById("pr-build-hashes-ui")) return;
+        if (!hasPrPublishedOnS3Label()) return;
         runUrl = getRunUrlFromDom();
-        showPrUi(runUrl);
+        showPrUi(runUrl, true);
       }, 2000);
     }
   }
 
+  var lastPathname = window.location.pathname;
+
+  function onPrUrlChange() {
+    console.log("onPrUrlChange");
+    if (isOnPrPage()) {
+      run();
+    } else {
+      removePrUi();
+    }
+  }
+
+  function checkPathnameChange() {
+    var current = window.location.pathname;
+    if (current !== lastPathname) {
+      lastPathname = current;
+      onPrUrlChange();
+    }
+  }
+
+  function setupSpaNavListeners() {
+    var origPush = history.pushState;
+    var origReplace = history.replaceState;
+    history.pushState = function () {
+      origPush.apply(this, arguments);
+      lastPathname = window.location.pathname;
+      onPrUrlChange();
+    };
+    history.replaceState = function () {
+      origReplace.apply(this, arguments);
+      lastPathname = window.location.pathname;
+      onPrUrlChange();
+    };
+    window.addEventListener("popstate", function () {
+      lastPathname = window.location.pathname;
+      onPrUrlChange();
+    });
+    setInterval(checkPathnameChange, 400);
+  }
+
+  setupSpaNavListeners();
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", run);
+    document.addEventListener("DOMContentLoaded", function () {
+      if (isOnPrPage()) run();
+      else removePrUi();
+    });
   } else {
-    run();
+    if (isOnPrPage()) run();
+    else removePrUi();
   }
 })();
