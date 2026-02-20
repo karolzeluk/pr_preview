@@ -9,8 +9,27 @@
 
   chrome.runtime.sendMessage({ type: "getPrForTab" }, function (response) {
     if (chrome.runtime.lastError || !response || !response.pr) return;
-    injectPrBadge(response.pr);
+    var pr = response.pr;
+    injectPrBadge(pr);
+    maintainTitlePrefix(pr);
   });
+
+  function maintainTitlePrefix(pr) {
+    var prefix = "[PR-" + pr + "] ";
+
+    function ensurePrefix() {
+      if (document.title && document.title.indexOf(prefix) !== 0) {
+        document.title = prefix + document.title;
+      }
+    }
+
+    if (document.title) ensurePrefix();
+
+    new MutationObserver(ensurePrefix).observe(
+      document.querySelector("title") || document.head || document.documentElement,
+      { childList: true, subtree: true, characterData: true },
+    );
+  }
 
   function injectPrBadge(pr) {
     function insert() {
