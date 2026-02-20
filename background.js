@@ -1,167 +1,206 @@
 /**
- * Prepares PR build redirect rules and cleans them up when the tab is closed.
- * Avoids document.write and CSP by redirecting script/stylesheet requests instead.
+ * Background service worker.
+ * Manages per-tab PR associations (persisted in chrome.storage.session so
+ * they survive service worker restarts and tab refreshes) and exact-target
+ * redirect rules scoped to specific tabs via tabIds condition.
+ *
+ * Uses session-scoped rules (updateSessionRules) because tabIds is only
+ * supported on session rules, not dynamic rules.
  */
 (function () {
-  const RULE_IDS = { RUNTIME_JS: 1001, MAIN_JS: 1002, MAIN_CSS: 1003 };
-  const RULE_IDS_LIST = [
-    RULE_IDS.RUNTIME_JS,
-    RULE_IDS.MAIN_JS,
-    RULE_IDS.MAIN_CSS,
-  ];
-  var activeTabId = null;
+  var STORAGE_KEY = "prTabs";
 
-  function makeRedirectRules(pr, runtimeJs, mainJs, mainCss) {
-    const base = "https://static.collibra.dev/pr-releases/" + pr + "/";
-    var rules = [];
-    if (runtimeJs) {
-      rules.push({
-        id: RULE_IDS.RUNTIME_JS,
-        priority: 1,
-        action: {
-          type: "redirect",
-          redirect: { url: base + runtimeJs },
-        },
-        condition: {
-          regexFilter:
-            "^https://static\\.collibra\\.dev/releases/[^/]+/runtime\\.[a-f0-9]+\\.js$",
-          resourceTypes: ["script"],
-        },
-      });
-    }
-    if (mainJs) {
-      rules.push({
-        id: RULE_IDS.MAIN_JS,
-        priority: 1,
-        action: {
-          type: "redirect",
-          redirect: { url: base + mainJs },
-        },
-        condition: {
-          regexFilter:
-            "^https://static\\.collibra\\.dev/releases/[^/]+/main\\.[a-f0-9]+\\.js$",
-          resourceTypes: ["script"],
-        },
-      });
-    }
-    if (mainCss) {
-      rules.push({
-        id: RULE_IDS.MAIN_CSS,
-        priority: 1,
-        action: {
-          type: "redirect",
-          redirect: { url: base + mainCss },
-        },
-        condition: {
-          regexFilter:
-            "^https://static\\.collibra\\.dev/releases/[^/]+/main\\.[a-f0-9]+\\.css$",
-          resourceTypes: ["stylesheet"],
-        },
-      });
-    }
-    return rules;
+  function getActiveTabs(callback) {
+    chrome.storage.session.get(STORAGE_KEY, function (data) {
+      callback((data && data[STORAGE_KEY]) || {});
+    });
   }
 
-  function removeRedirectRules() {
-    chrome.declarativeNetRequest.updateDynamicRules({
-      removeRuleIds: RULE_IDS_LIST,
+  function setActiveTabs(tabs, callback) {
+    var obj = {};
+    obj[STORAGE_KEY] = tabs;
+    chrome.storage.session.set(obj, callback || function () {});
+  }
+
+  function getSessionRuleIds(callback) {
+    chrome.declarativeNetRequest.getSessionRules(function (rules) {
+      callback(rules.map(function (r) { return r.id; }));
     });
-    activeTabId = null;
+  }
+
+  function removeAllSessionRules(callback) {
+    getSessionRuleIds(function (ids) {
+      if (ids.length === 0) {
+        (callback || function () {})();
+        return;
+      }
+      chrome.declarativeNetRequest.updateSessionRules(
+        { removeRuleIds: ids },
+        callback || function () {},
+      );
+    });
+  }
+
+  function rebuildAllRules(callback) {
+    getActiveTabs(function (tabs) {
+      var allRules = [];
+      var ruleId = 1;
+      var tabIdKeys = Object.keys(tabs);
+      for (var i = 0; i < tabIdKeys.length; i++) {
+        var tid = parseInt(tabIdKeys[i], 10);
+        var entry = tabs[tabIdKeys[i]];
+        if (!entry || !entry.pr) continue;
+        var base =
+          "https://static.collibra.dev/pr-releases/" + entry.pr + "/";
+        var tabIds = [tid];
+        if (entry.runtimeJs) {
+          allRules.push({
+            id: ruleId++,
+            priority: 1,
+            action: {
+              type: "redirect",
+              redirect: { url: base + entry.runtimeJs },
+            },
+            condition: {
+              regexFilter:
+                "^https://static\\.collibra\\.dev/releases/[^/]+/runtime\\.\\w+\\.js$",
+              resourceTypes: ["script"],
+              tabIds: tabIds,
+            },
+          });
+        }
+        if (entry.mainJs) {
+          allRules.push({
+            id: ruleId++,
+            priority: 1,
+            action: {
+              type: "redirect",
+              redirect: { url: base + entry.mainJs },
+            },
+            condition: {
+              regexFilter:
+                "^https://static\\.collibra\\.dev/releases/[^/]+/main\\.\\w+\\.js$",
+              resourceTypes: ["script"],
+              tabIds: tabIds,
+            },
+          });
+        }
+        if (entry.mainCss) {
+          allRules.push({
+            id: ruleId++,
+            priority: 1,
+            action: {
+              type: "redirect",
+              redirect: { url: base + entry.mainCss },
+            },
+            condition: {
+              regexFilter:
+                "^https://static\\.collibra\\.dev/releases/[^/]+/main\\.\\w+\\.css$",
+              resourceTypes: ["stylesheet"],
+              tabIds: tabIds,
+            },
+          });
+        }
+      }
+      getSessionRuleIds(function (existingIds) {
+        chrome.declarativeNetRequest.updateSessionRules(
+          { removeRuleIds: existingIds, addRules: allRules },
+          callback || function () {},
+        );
+      });
+    });
   }
 
   chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
-    if (msg.type === "clearPrRedirectsAndReload") {
-      removeRedirectRules();
-      var tabId = sender.tab && sender.tab.id;
-      var cleanUrl = msg.cleanUrl;
-      if (!tabId || !cleanUrl) {
-        sendResponse({ ok: false });
-        return true;
-      }
-      chrome.tabs.update(tabId, { url: cleanUrl }, function () {
-        if (chrome.runtime.lastError) {
-          sendResponse({ ok: false });
-          return;
-        }
-        chrome.tabs.reload(tabId, { bypassCache: true }, function () {
-          sendResponse({ ok: true });
-        });
-      });
-      return true;
-    }
-    if (msg.type === "openInfraWithPr") {
+    if (msg.type === "openPrBuild") {
       var pr = msg.pr;
       if (!pr || (!msg.runtimeJs && !msg.mainJs && !msg.mainCss)) {
         sendResponse({ ok: false });
         return true;
       }
-      var rules = makeRedirectRules(pr, msg.runtimeJs, msg.mainJs, msg.mainCss);
-      chrome.declarativeNetRequest.updateDynamicRules({
-        removeRuleIds: RULE_IDS_LIST,
-        addRules: rules,
-      });
-      var q = "pr=" + encodeURIComponent(pr);
-      if (msg.runtimeJs) q += "&runtimeJs=" + encodeURIComponent(msg.runtimeJs);
-      if (msg.mainJs) q += "&mainJs=" + encodeURIComponent(msg.mainJs);
-      if (msg.mainCss) q += "&mainCss=" + encodeURIComponent(msg.mainCss);
       chrome.storage.local.get("defaultInfraUrl", function (data) {
-        var base =
+        var infraUrl =
           (data.defaultInfraUrl && data.defaultInfraUrl.trim()) ||
           "https://infra-main.collibra.dev";
-        base = base.replace(/\/?$/, "");
-        var url = base + "/?" + q;
-        chrome.tabs.create({ url: url }, function (tab) {
-          if (tab && tab.id) activeTabId = tab.id;
+        infraUrl = infraUrl.replace(/\/?$/, "");
+        chrome.tabs.create({ url: "about:blank" }, function (tab) {
+          if (tab && tab.id) {
+            var tabId = tab.id;
+            getActiveTabs(function (tabs) {
+              tabs[tabId] = {
+                pr: pr,
+                runtimeJs: msg.runtimeJs,
+                mainJs: msg.mainJs,
+                mainCss: msg.mainCss,
+              };
+              setActiveTabs(tabs, function () {
+                rebuildAllRules(function () {
+                  chrome.tabs.update(tabId, { url: infraUrl + "/" }, function () {
+                    sendResponse({ ok: true });
+                  });
+                });
+              });
+            });
+          } else {
+            sendResponse({ ok: true });
+          }
         });
-        sendResponse({ ok: true });
       });
       return true;
     }
-    if (msg.type !== "preparePrRedirects") return;
-    var pr = msg.pr;
-    if (!pr) {
-      sendResponse({ ok: false });
-      return;
-    }
-    var runtimeJs = msg.runtimeJs;
-    var mainJs = msg.mainJs;
-    var mainCss = msg.mainCss;
-    if (runtimeJs || mainJs || mainCss) {
-      var rules = makeRedirectRules(pr, runtimeJs, mainJs, mainCss);
-      chrome.declarativeNetRequest.updateDynamicRules({
-        removeRuleIds: RULE_IDS_LIST,
-        addRules: rules,
-      });
-      activeTabId = sender.tab ? sender.tab.id : null;
-      sendResponse({ ok: true });
-      return true;
-    }
-    chrome.storage.local.get("prBuilds", function (data) {
-      var prBuilds = (data && data.prBuilds) || {};
-      var build = prBuilds[pr];
-      if (!build || (!build.runtimeJs && !build.mainJs && !build.mainCss)) {
-        sendResponse({ ok: false });
-        return;
+
+    if (msg.type === "getPrForTab") {
+      var tabId = sender.tab && sender.tab.id;
+      if (!tabId) {
+        sendResponse({ pr: null });
+        return false;
       }
-      var rules = makeRedirectRules(
-        pr,
-        build.runtimeJs,
-        build.mainJs,
-        build.mainCss,
-      );
-      chrome.declarativeNetRequest.updateDynamicRules({
-        removeRuleIds: RULE_IDS_LIST,
-        addRules: rules,
+      getActiveTabs(function (tabs) {
+        var entry = tabs[tabId];
+        if (entry && entry.pr) {
+          sendResponse({ pr: entry.pr });
+        } else {
+          sendResponse({ pr: null });
+        }
       });
-      activeTabId = sender.tab ? sender.tab.id : null;
-      sendResponse({ ok: true });
-    });
-    return true;
+      return true;
+    }
+
+    if (msg.type === "clearPrBuild") {
+      var tabId = sender.tab && sender.tab.id;
+      getActiveTabs(function (tabs) {
+        if (tabId) {
+          delete tabs[tabId];
+          setActiveTabs(tabs);
+        }
+        rebuildAllRules(function () {
+          if (tabId) {
+            chrome.tabs.reload(tabId, { bypassCache: true }, function () {
+              sendResponse({ ok: true });
+            });
+          } else {
+            sendResponse({ ok: true });
+          }
+        });
+      });
+      return true;
+    }
+
+    return false;
   });
 
   chrome.tabs.onRemoved.addListener(function (tabId) {
-    if (tabId === activeTabId) removeRedirectRules();
+    getActiveTabs(function (tabs) {
+      if (tabs[tabId]) {
+        delete tabs[tabId];
+        setActiveTabs(tabs);
+        rebuildAllRules();
+      }
+    });
   });
 
-  chrome.runtime.onInstalled.addListener(function () {});
+  chrome.runtime.onInstalled.addListener(function () {
+    removeAllSessionRules();
+    setActiveTabs({});
+  });
 })();

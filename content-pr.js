@@ -1,7 +1,10 @@
 /**
  * PR page content script.
  * Runs only when the PR has the label "PR Published on S3".
- * Shows "Open Collibra with PR build" and uses Build and publish run URL when needed.
+ * Fetches the PR build's index.html to verify it exists and extract
+ * asset filenames, then shows "Open Collibra with PR build" button.
+ * On click, sends filenames to background which installs redirect rules
+ * and opens the infra page.
  * Hides the UI when user navigates away from the PR (SPA navigation).
  */
 (function () {
@@ -28,28 +31,6 @@
     return false;
   }
 
-  function getRunUrlFromDom() {
-    const links = document.querySelectorAll(
-      'a[href*="/collibra/frontend/actions/runs/"]',
-    );
-    for (let i = 0; i < links.length; i++) {
-      const a = links[i];
-      const href = (a.getAttribute("href") || "").trim();
-      const text = (a.textContent || "").trim();
-      if (
-        text.indexOf("Build and Publish") !== -1 ||
-        (href.match(/\/actions\/runs\/\d+/) &&
-          text.toLowerCase().indexOf("build and publish") !== -1)
-      ) {
-        if (href.startsWith("http")) return href;
-        return (
-          "https://github.com" + (href.startsWith("/") ? href : "/" + href)
-        );
-      }
-    }
-    return null;
-  }
-
   function getPrNumberFromPathname() {
     const m = window.location.pathname.match(
       /\/collibra\/frontend\/pull\/(\d+)/,
@@ -57,74 +38,89 @@
     return m ? m[1] : null;
   }
 
-  const DEFAULT_INFRA_URL = "https://infra-main.collibra.dev";
+  function parseFilenamesFromHtml(html) {
+    var doc = new DOMParser().parseFromString(html, "text/html");
+    var runtimeJs = null;
+    var mainJs = null;
+    var mainCss = null;
 
-  function showPrUi(runUrl, hasRequiredLabel, defaultInfraUrl) {
-    defaultInfraUrl =
-      (defaultInfraUrl && defaultInfraUrl.trim()) || DEFAULT_INFRA_URL;
-    var infraBase = defaultInfraUrl.replace(/\/?$/, "");
+    doc.querySelectorAll("script[src]").forEach(function (el) {
+      var src = el.getAttribute("src") || "";
+      var filename = src.split("/").pop();
+      if (/^runtime\.\w+\.js$/.test(filename)) runtimeJs = filename;
+      else if (/^main\.\w+\.js$/.test(filename)) mainJs = filename;
+    });
+
+    doc.querySelectorAll('link[rel="stylesheet"][href]').forEach(function (el) {
+      var href = el.getAttribute("href") || "";
+      var filename = href.split("/").pop();
+      if (/^main\.\w+\.css$/.test(filename)) mainCss = filename;
+    });
+
+    return { runtimeJs: runtimeJs, mainJs: mainJs, mainCss: mainCss };
+  }
+
+  function fetchPrBuild(prNumber, callback) {
+    var url =
+      "https://static.collibra.dev/pr-releases/" + prNumber + "/index.html";
+    fetch(url)
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.text();
+      })
+      .then(function (html) {
+        var filenames = parseFilenamesFromHtml(html);
+        if (filenames.runtimeJs || filenames.mainJs || filenames.mainCss) {
+          callback(filenames);
+        } else {
+          callback(null);
+        }
+      })
+      .catch(function () {
+        callback(null);
+      });
+  }
+
+  function showPrUi(prNumber, filenames) {
     const id = "pr-build-hashes-ui";
     if (document.getElementById(id)) return;
+
     const wrap = document.createElement("div");
     wrap.id = id;
     wrap.style.cssText =
       "position:fixed;top:60px;right:16px;z-index:9999;padding:10px 14px;background:#fff;border:1px solid #d0d7de;border-radius:6px;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,0.1);";
+
     const linkStyle =
-      "display:inline-block;padding:6px 12px;background:#0969da;color:#fff;border-radius:6px;text-decoration:none;font-weight:500;margin-right:8px;margin-bottom:6px;";
-    const prNumber = getPrNumberFromPathname();
-    if (prNumber && hasRequiredLabel) {
-      const infraLink = document.createElement("a");
-      infraLink.href = infraBase + "/?pr=" + prNumber;
-      infraLink.target = "_blank";
-      infraLink.rel = "noopener";
-      infraLink.textContent = "Open Collibra with PR build";
-      infraLink.style.cssText = linkStyle;
-      infraLink.addEventListener("click", function (e) {
-        e.preventDefault();
-        var currentRunUrl = getRunUrlFromDom();
-        if (currentRunUrl) {
-          chrome.storage.local.set(
-            { openInfraAfterRun: prNumber },
-            function () {
-              window.open(currentRunUrl, "_blank", "noopener");
-            },
-          );
-          return;
-        }
-        chrome.storage.local.get(
-          ["prBuilds", "currentPrBuild"],
-          function (data) {
-            var prBuilds = (data && data.prBuilds) || {};
-            var currentPrBuild = (data && data.currentPrBuild) || null;
-            var build =
-              prBuilds[prNumber] ||
-              (currentPrBuild && currentPrBuild.pr === prNumber
-                ? currentPrBuild
-                : null);
-            var msg = { type: "preparePrRedirects", pr: prNumber };
-            if (build && (build.runtimeJs || build.mainJs || build.mainCss)) {
-              msg.runtimeJs = build.runtimeJs;
-              msg.mainJs = build.mainJs;
-              msg.mainCss = build.mainCss;
-            }
-            chrome.runtime.sendMessage(msg, function () {
-              window.open(infraLink.href, "_blank", "noopener");
-            });
-          },
-        );
-      });
-      infraLink.addEventListener("mouseenter", function () {
-        infraLink.style.background = "#0550ae";
-      });
-      infraLink.addEventListener("mouseleave", function () {
-        infraLink.style.background = "#0969da";
-      });
-      wrap.appendChild(infraLink);
-    }
-    if (!runUrl && !prNumber) {
-      wrap.textContent = "Build and publish run not found";
-      wrap.style.color = "#57606a";
-    }
+      "display:inline-block;padding:6px 12px;background:#0969da;color:#fff;border-radius:6px;text-decoration:none;font-weight:500;cursor:pointer;";
+
+    const btn = document.createElement("a");
+    btn.textContent = "Open Collibra with PR build";
+    btn.style.cssText = linkStyle;
+    btn.addEventListener("click", function (e) {
+      e.preventDefault();
+      if (!chrome.runtime.id) {
+        window.location.reload();
+        return;
+      }
+      chrome.runtime.sendMessage(
+        {
+          type: "openPrBuild",
+          pr: prNumber,
+          runtimeJs: filenames.runtimeJs,
+          mainJs: filenames.mainJs,
+          mainCss: filenames.mainCss,
+        },
+        function () {},
+      );
+    });
+    btn.addEventListener("mouseenter", function () {
+      btn.style.background = "#0550ae";
+    });
+    btn.addEventListener("mouseleave", function () {
+      btn.style.background = "#0969da";
+    });
+
+    wrap.appendChild(btn);
     document.body.appendChild(wrap);
   }
 
@@ -138,32 +134,20 @@
       }
       return;
     }
-    var runUrl = getRunUrlFromDom();
-    chrome.storage.local.get("defaultInfraUrl", function (data) {
-      var defaultInfraUrl =
-        (data.defaultInfraUrl && data.defaultInfraUrl.trim()) ||
-        DEFAULT_INFRA_URL;
-      showPrUi(runUrl, true, defaultInfraUrl);
+
+    var prNumber = getPrNumberFromPathname();
+    if (!prNumber) return;
+
+    fetchPrBuild(prNumber, function (filenames) {
+      if (filenames) {
+        showPrUi(prNumber, filenames);
+      }
     });
-    if (!runUrl) {
-      setTimeout(function () {
-        if (document.getElementById("pr-build-hashes-ui")) return;
-        if (!hasPrPublishedOnS3Label()) return;
-        runUrl = getRunUrlFromDom();
-        chrome.storage.local.get("defaultInfraUrl", function (data) {
-          var defaultInfraUrl =
-            (data.defaultInfraUrl && data.defaultInfraUrl.trim()) ||
-            DEFAULT_INFRA_URL;
-          showPrUi(runUrl, true, defaultInfraUrl);
-        });
-      }, 2000);
-    }
   }
 
   var lastPathname = window.location.pathname;
 
   function onPrUrlChange() {
-    console.log("onPrUrlChange");
     if (isOnPrPage()) {
       run();
     } else {

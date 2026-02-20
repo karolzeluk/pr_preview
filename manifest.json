@@ -1,17 +1,21 @@
 {
   "manifest_version": 3,
-  "name": "PR Build Hashes",
-  "version": "1.0.0",
-  "description": "Extract runtime and main JS hashes from Build and publish workflow logs on collibra/frontend PRs",
+  "name": "PR Preview",
+  "version": "1.1.0",
+  "description": "Preview PR builds in Collibra Instance",
+  "icons": {
+    "16": "pr_preview.ico",
+    "48": "pr_preview.png",
+    "128": "pr_preview.png"
+  },
   "permissions": [
-    "activeTab",
     "storage",
     "declarativeNetRequest",
     "declarativeNetRequestWithHostAccess"
   ],
   "host_permissions": [
     "https://github.com/collibra/frontend/*",
-    "https://infra-main.collibra.dev/*",
+    "https://*.collibra.dev/*",
     "https://*.collibra-ops.com/*",
     "https://static.collibra.dev/*"
   ],
@@ -22,18 +26,7 @@
       "run_at": "document_idle"
     },
     {
-      "matches": ["https://github.com/collibra/frontend/actions/runs/*"],
-      "js": ["inject-fetch-intercept.js"],
-      "run_at": "document_start",
-      "world": "MAIN"
-    },
-    {
-      "matches": ["https://github.com/collibra/frontend/actions/runs/*"],
-      "js": ["parser.js", "content-run.js"],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": ["https://infra-main.collibra.dev/*", "https://*.collibra-ops.com/*"],
+      "matches": ["https://*.collibra.dev/*", "https://*.collibra-ops.com/*"],
       "js": ["content-infra.js"],
       "run_at": "document_start"
     }

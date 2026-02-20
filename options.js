@@ -6,7 +6,9 @@
   var statusEl = document.getElementById("status");
 
   chrome.storage.local.get("defaultInfraUrl", function (data) {
-    input.value = (data.defaultInfraUrl && data.defaultInfraUrl.trim()) || DEFAULT_INFRA_URL;
+    input.value =
+      (data.defaultInfraUrl && data.defaultInfraUrl.trim()) ||
+      DEFAULT_INFRA_URL;
   });
 
   saveBtn.addEventListener("click", function () {
