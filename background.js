@@ -56,7 +56,7 @@
         if (entry.runtimeJs) {
           allRules.push({
             id: ruleId++,
-            priority: 1,
+            priority: 2,
             action: {
               type: "redirect",
               redirect: { url: base + entry.runtimeJs },
@@ -72,7 +72,7 @@
         if (entry.mainJs) {
           allRules.push({
             id: ruleId++,
-            priority: 1,
+            priority: 2,
             action: {
               type: "redirect",
               redirect: { url: base + entry.mainJs },
@@ -88,7 +88,7 @@
         if (entry.mainCss) {
           allRules.push({
             id: ruleId++,
-            priority: 1,
+            priority: 2,
             action: {
               type: "redirect",
               redirect: { url: base + entry.mainCss },
@@ -101,6 +101,22 @@
             },
           });
         }
+        allRules.push({
+          id: ruleId++,
+          priority: 1,
+          action: {
+            type: "redirect",
+            redirect: {
+              regexSubstitution: base + "\\1",
+            },
+          },
+          condition: {
+            regexFilter:
+              "^https://static\\.collibra\\.dev/releases/[^/]+/(.*)$",
+            resourceTypes: ["script", "stylesheet"],
+            tabIds: tabIds,
+          },
+        });
       }
       getSessionRuleIds(function (existingIds) {
         chrome.declarativeNetRequest.updateSessionRules(
