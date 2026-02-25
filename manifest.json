@@ -17,6 +17,7 @@
     "https://github.com/collibra/frontend/*",
     "https://*.collibra.dev/*",
     "https://*.collibra-ops.com/*",
+    "https://*.collibra.tech/*",
     "https://static.collibra.dev/*"
   ],
   "content_scripts": [
@@ -26,7 +27,11 @@
       "run_at": "document_idle"
     },
     {
-      "matches": ["https://*.collibra.dev/*", "https://*.collibra-ops.com/*"],
+      "matches": [
+        "https://*.collibra.dev/*",
+        "https://*.collibra-ops.com/*",
+        "https://*.collibra.tech/*"
+      ],
       "js": ["content-infra.js"],
       "run_at": "document_start"
     }
