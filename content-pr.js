@@ -1,8 +1,8 @@
 /**
  * PR page content script.
- * Runs only when the PR has the label "PR Published on S3".
- * Fetches the PR build's index.html to verify it exists and extract
- * asset filenames, then shows "Open Collibra with PR build" button.
+ * Fetches the PR build's index.html from static.collibra.dev to verify
+ * it exists and extract asset filenames, then shows "Open Collibra with
+ * PR build" button.
  * On click, sends filenames to background which installs redirect rules
  * and opens the infra page.
  * Hides the UI when user navigates away from the PR (SPA navigation).
@@ -10,7 +10,6 @@
 (function () {
   if (!/^\/collibra\/frontend\/pull\//.test(window.location.pathname)) return;
 
-  const REQUIRED_LABEL = "PR Published on S3";
   const PR_PAGE_RE = /^\/collibra\/frontend\/pull\/\d+(\/|$)/;
 
   function isOnPrPage() {
@@ -20,15 +19,6 @@
   function removePrUi() {
     var el = document.getElementById("pr-build-hashes-ui");
     if (el) el.remove();
-  }
-
-  function hasPrPublishedOnS3Label() {
-    var labelEls = document.querySelectorAll('[class*="Label"], [data-name]');
-    for (var i = 0; i < labelEls.length; i++) {
-      var text = (labelEls[i].textContent || "").trim();
-      if (text === REQUIRED_LABEL) return true;
-    }
-    return false;
   }
 
   function getPrNumberFromPathname() {
@@ -124,17 +114,7 @@
     document.body.appendChild(wrap);
   }
 
-  function run(retryCount) {
-    retryCount = retryCount || 0;
-    if (!hasPrPublishedOnS3Label()) {
-      if (retryCount < 2) {
-        setTimeout(function () {
-          run(retryCount + 1);
-        }, 2000);
-      }
-      return;
-    }
-
+  function run() {
     var prNumber = getPrNumberFromPathname();
     if (!prNumber) return;
 
