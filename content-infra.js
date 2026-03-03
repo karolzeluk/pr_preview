@@ -10,7 +10,8 @@
   chrome.runtime.sendMessage({ type: "getPrForTab" }, function (response) {
     if (chrome.runtime.lastError || !response || !response.pr) return;
     var pr = response.pr;
-    injectPrBadge(pr);
+    var color = response.color || "red";
+    injectPrBadge(pr, color);
     maintainTitlePrefix(pr);
   });
 
@@ -31,7 +32,7 @@
     );
   }
 
-  function injectPrBadge(pr) {
+  function injectPrBadge(pr, color) {
     function insert() {
       var id = "pr-build-hashes-badge";
       if (document.getElementById(id)) return;
@@ -41,7 +42,7 @@
         "position:fixed;bottom:8px;right:8px;z-index:999999;font-family:system-ui,sans-serif;display:flex;align-items:center;gap:6px;";
       var badge = document.createElement("span");
       badge.style.cssText =
-        "border:2px solid red;padding:4px 8px;font-size:12px;background:white;color:#1d2227;";
+        "border:2px solid " + color + ";padding:4px 8px;font-size:12px;background:white;color:#1d2227;";
       badge.textContent = "PR " + pr;
       wrap.appendChild(badge);
       var clearBtn = document.createElement("button");

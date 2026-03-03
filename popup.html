@@ -1,0 +1,325 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>PR Preview – Options</title>
+    <style>
+      @keyframes subtleGlow {
+        0%,
+        100% {
+          box-shadow: 0 0 8px rgba(9, 105, 218, 0.08);
+        }
+        50% {
+          box-shadow: 0 0 20px rgba(9, 105, 218, 0.18);
+        }
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(6px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes shimmer {
+        0% {
+          background-position: -200% 0;
+        }
+        100% {
+          background-position: 200% 0;
+        }
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        width: 420px;
+      }
+
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        padding: 24px;
+        background: #f8f9fb;
+        color: #1d2433;
+        box-sizing: border-box;
+      }
+
+      h2 {
+        margin: 0 0 20px 0;
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: -0.3px;
+        animation: fadeIn 0.3s ease-out;
+      }
+
+      .section-label {
+        font-weight: 600;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #5a6070;
+        margin-bottom: 6px;
+        display: block;
+        animation: fadeIn 0.3s ease-out;
+      }
+
+      .hint {
+        font-size: 12px;
+        color: #8891a4;
+        margin-bottom: 16px;
+        line-height: 1.5;
+        animation: fadeIn 0.3s ease-out;
+      }
+
+      #instances-container {
+        animation: fadeIn 0.3s ease-out;
+      }
+
+      .instance-row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 10px;
+        padding: 10px 12px;
+        background: #ffffff;
+        border: 1px solid #e2e6ed;
+        border-radius: 14px;
+        transition:
+          border-color 0.25s ease,
+          box-shadow 0.25s ease;
+        animation: subtleGlow 4s ease-in-out infinite;
+      }
+
+      .instance-row:hover {
+        border-color: #c5cdd8;
+        box-shadow: 0 2px 12px rgba(9, 105, 218, 0.1);
+      }
+
+      .instance-row input {
+        padding: 8px 10px;
+        box-sizing: border-box;
+        border: 1px solid #e2e6ed;
+        border-radius: 10px;
+        font-size: 13px;
+        font-family: inherit;
+        color: #1d2433;
+        background: #f8f9fb;
+        outline: none;
+        transition:
+          border-color 0.2s ease,
+          box-shadow 0.2s ease,
+          background 0.2s ease;
+      }
+
+      .instance-row input:focus {
+        border-color: #0969da;
+        background: #fff;
+        box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.1);
+      }
+
+      .instance-row input::placeholder {
+        color: #b0b8c8;
+      }
+
+      .color-picker {
+        position: relative;
+      }
+
+      .color-trigger {
+        width: 32px;
+        height: 32px;
+        min-width: 32px;
+        border-radius: 50%;
+        border: 2px solid #e2e6ed;
+        cursor: pointer;
+        padding: 0;
+        outline: none;
+        transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+      }
+
+      .color-trigger:hover {
+        transform: scale(1.1);
+        border-color: #0969da;
+        box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.12);
+      }
+
+      .color-dropdown {
+        display: none;
+        position: absolute;
+        top: 40px;
+        left: 0;
+        transform: none;
+        background: #fff;
+        border: 1px solid #e2e6ed;
+        border-radius: 12px;
+        padding: 8px;
+        gap: 6px;
+        flex-wrap: wrap;
+        width: 120px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+        z-index: 100;
+        justify-content: center;
+      }
+
+      .color-dropdown.open {
+        display: flex;
+      }
+
+      .color-swatch {
+        width: 22px;
+        height: 22px;
+        min-width: 22px;
+        border-radius: 50%;
+        border: 2px solid transparent;
+        cursor: pointer;
+        padding: 0;
+        outline: none;
+        transition: transform 0.15s ease, border-color 0.15s ease;
+      }
+
+      .color-swatch:hover {
+        transform: scale(1.2);
+      }
+
+      .color-swatch.selected {
+        border-color: #1d2433;
+        transform: scale(1.15);
+      }
+
+      .instance-row .label-input {
+        width: 90px;
+        min-width: 90px;
+      }
+
+      .instance-row .url-input {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .instance-row .remove-btn {
+        padding: 6px 10px;
+        background: transparent;
+        color: #c0c6d0;
+        border: 1px solid #e2e6ed;
+        border-radius: 10px;
+        cursor: pointer;
+        font-size: 14px;
+        line-height: 1;
+        transition: all 0.2s ease;
+      }
+
+      .instance-row .remove-btn:hover {
+        background: #fee2e2;
+        color: #dc2626;
+        border-color: #fca5a5;
+        transform: scale(1.05);
+      }
+
+      #add-instance {
+        margin-bottom: 16px;
+        padding: 8px 16px;
+        background: #ffffff;
+        border: 1px dashed #c5cdd8;
+        border-radius: 12px;
+        cursor: pointer;
+        font-size: 13px;
+        font-family: inherit;
+        color: #5a6070;
+        transition: all 0.2s ease;
+        animation: fadeIn 0.3s ease-out;
+      }
+
+      #add-instance:hover {
+        background: #f0f3f8;
+        border-color: #0969da;
+        color: #0969da;
+        border-style: solid;
+      }
+
+      #add-instance:disabled {
+        opacity: 0.35;
+        cursor: default;
+        border-style: dashed;
+        color: #5a6070;
+        background: #ffffff;
+      }
+
+      button#save {
+        padding: 10px 28px;
+        background: linear-gradient(135deg, #0969da, #0550ae);
+        background-size: 200% 200%;
+        color: #fff;
+        border: none;
+        border-radius: 12px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        font-family: inherit;
+        letter-spacing: 0.2px;
+        transition: all 0.25s ease;
+        position: relative;
+        overflow: hidden;
+        animation: fadeIn 0.3s ease-out;
+      }
+
+      button#save::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(
+          90deg,
+          transparent 0%,
+          rgba(255, 255, 255, 0.15) 50%,
+          transparent 100%
+        );
+        background-size: 200% 100%;
+        animation: shimmer 3s ease-in-out infinite;
+        border-radius: inherit;
+      }
+
+      button#save:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 16px rgba(9, 105, 218, 0.35);
+      }
+
+      button#save:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 8px rgba(9, 105, 218, 0.25);
+      }
+
+      .status {
+        margin-top: 10px;
+        font-size: 13px;
+        color: #22863a;
+        font-weight: 500;
+        animation: fadeIn 0.3s ease-out;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>PR Preview – Options</h2>
+    <span class="section-label">Collibra instances (up to 3)</span>
+    <div class="hint">
+      Each instance needs a label (shown on the PR button), a URL, and a color.
+      The color is used on the badge when previewing the PR.
+    </div>
+    <div id="instances-container"></div>
+    <button id="add-instance" type="button">+ Add instance</button>
+    <br /><br />
+    <button id="save">Save</button>
+    <div id="status" class="status"></div>
+    <script src="options.js"></script>
+  </body>
+</html>

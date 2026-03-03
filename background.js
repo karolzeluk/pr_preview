@@ -134,33 +134,30 @@
         sendResponse({ ok: false });
         return true;
       }
-      chrome.storage.local.get("defaultInfraUrl", function (data) {
-        var infraUrl =
-          (data.defaultInfraUrl && data.defaultInfraUrl.trim()) ||
-          "https://infra-main.collibra.dev";
-        infraUrl = infraUrl.replace(/\/?$/, "");
-        chrome.tabs.create({ url: "about:blank" }, function (tab) {
-          if (tab && tab.id) {
-            var tabId = tab.id;
-            getActiveTabs(function (tabs) {
-              tabs[tabId] = {
-                pr: pr,
-                runtimeJs: msg.runtimeJs,
-                mainJs: msg.mainJs,
-                mainCss: msg.mainCss,
-              };
-              setActiveTabs(tabs, function () {
-                rebuildAllRules(function () {
-                  chrome.tabs.update(tabId, { url: infraUrl + "/" }, function () {
-                    sendResponse({ ok: true });
-                  });
+      var infraUrl = (msg.infraUrl && msg.infraUrl.trim()) || "https://infra-main.collibra.dev";
+      infraUrl = infraUrl.replace(/\/?$/, "");
+      chrome.tabs.create({ url: "about:blank" }, function (tab) {
+        if (tab && tab.id) {
+          var tabId = tab.id;
+          getActiveTabs(function (tabs) {
+            tabs[tabId] = {
+              pr: pr,
+              color: msg.color || "#0969da",
+              runtimeJs: msg.runtimeJs,
+              mainJs: msg.mainJs,
+              mainCss: msg.mainCss,
+            };
+            setActiveTabs(tabs, function () {
+              rebuildAllRules(function () {
+                chrome.tabs.update(tabId, { url: infraUrl + "/" }, function () {
+                  sendResponse({ ok: true });
                 });
               });
             });
-          } else {
-            sendResponse({ ok: true });
-          }
-        });
+          });
+        } else {
+          sendResponse({ ok: true });
+        }
       });
       return true;
     }
@@ -174,7 +171,7 @@
       getActiveTabs(function (tabs) {
         var entry = tabs[tabId];
         if (entry && entry.pr) {
-          sendResponse({ pr: entry.pr });
+          sendResponse({ pr: entry.pr, color: entry.color || null });
         } else {
           sendResponse({ pr: null });
         }
