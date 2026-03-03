@@ -39,7 +39,11 @@
   "background": {
     "service_worker": "background.js"
   },
-  "options_ui": {
-    "page": "options.html"
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "pr_preview.ico",
+      "48": "pr_preview.png"
+    }
   }
 }
