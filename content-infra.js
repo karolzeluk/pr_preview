@@ -10,7 +10,7 @@
   chrome.runtime.sendMessage({ type: "getPrForTab" }, function (response) {
     if (chrome.runtime.lastError || !response || !response.pr) return;
     var pr = response.pr;
-    var color = response.color || "red";
+    var color = response.color || "#0969da";
     injectPrBadge(pr, color);
     maintainTitlePrefix(pr);
   });
@@ -39,22 +39,28 @@
       var wrap = document.createElement("div");
       wrap.id = id;
       wrap.style.cssText =
-        "position:fixed;bottom:8px;right:8px;z-index:999999;font-family:system-ui,sans-serif;display:flex;align-items:center;gap:6px;";
+        "position:fixed;bottom:16px;right:16px;z-index:999999;font-family:system-ui,sans-serif;display:flex;align-items:center;gap:8px;padding:8px 12px;background:#fff;border:1px solid #d0d7de;border-radius:6px;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,0.1);";
       var badge = document.createElement("span");
       badge.style.cssText =
-        "border:2px solid " + color + ";padding:4px 8px;font-size:12px;background:white;color:#1d2227;";
+        "font-size:13px;font-weight:500;color:#1d2227;border-left:3px solid " + color + ";padding-left:8px;";
       badge.textContent = "PR " + pr;
       wrap.appendChild(badge);
       var clearBtn = document.createElement("button");
       clearBtn.textContent = "Clear";
       clearBtn.style.cssText =
-        "padding:4px 8px;font-size:12px;background:#cf2222;color:white;border:none;border-radius:4px;cursor:pointer;display:none;";
+        "padding:4px 10px;font-size:12px;background:#0969da;color:white;border:none;border-radius:4px;cursor:pointer;font-weight:500;display:none;";
       clearBtn.addEventListener("click", function (e) {
         e.preventDefault();
         chrome.runtime.sendMessage(
           { type: "clearPrBuild" },
           function () {},
         );
+      });
+      clearBtn.addEventListener("mouseenter", function () {
+        clearBtn.style.background = "#0550ae";
+      });
+      clearBtn.addEventListener("mouseleave", function () {
+        clearBtn.style.background = "#0969da";
       });
       wrap.appendChild(clearBtn);
       wrap.addEventListener("mouseenter", function () {
