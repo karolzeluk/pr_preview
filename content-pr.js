@@ -190,7 +190,7 @@
       ].join(';');
 
       var label = document.createElement('span');
-      label.textContent = 'PR Preview';
+      label.textContent = 'View PR on:';
       label.style.cssText = [
         'font-size:12px',
         'font-weight:600',
