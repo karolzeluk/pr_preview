@@ -23,6 +23,8 @@
   function removePrUi() {
     var el = document.getElementById("pr-build-hashes-ui");
     if (el) el.remove();
+    var styles = document.getElementById("pr-preview-styles");
+    if (styles) styles.remove();
   }
 
   function getPrNumberFromPathname() {
@@ -90,26 +92,21 @@
     var style = document.createElement('style');
     style.id = 'pr-preview-styles';
     style.textContent = [
-      '@keyframes prPanelIn { from { opacity:0; transform:translateY(-8px) scale(0.97); } to { opacity:1; transform:translateY(0) scale(1); } }',
       '@keyframes prBtnShimmer { 0% { background-position:-200% 0; } 100% { background-position:200% 0; } }',
-      '@keyframes prSubtleGlow { 0%,100% { box-shadow:0 4px 24px rgba(0,0,0,0.25); } 50% { box-shadow:0 4px 32px rgba(0,0,0,0.35); } }',
-      '#pr-build-hashes-ui {',
-      '  animation: prPanelIn 0.35s cubic-bezier(0.16,1,0.3,1) both, prSubtleGlow 4s ease-in-out infinite;',
-      '}',
       '#pr-build-hashes-ui .pr-preview-btn {',
       '  position:relative; overflow:hidden;',
-      '  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;',
+      '  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;',
       '}',
       '#pr-build-hashes-ui .pr-preview-btn:hover {',
       '  transform: translateY(-1px);',
-      '  filter: brightness(1.1);',
+      '  filter: brightness(1.12);',
       '}',
       '#pr-build-hashes-ui .pr-preview-btn:active {',
       '  transform: translateY(0px);',
       '}',
       '#pr-build-hashes-ui .pr-preview-btn::after {',
       '  content:""; position:absolute; top:0; left:0; right:0; bottom:0;',
-      '  background:linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.18) 50%, transparent 100%);',
+      '  background:linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%);',
       '  background-size:200% 100%; animation:prBtnShimmer 3s ease-in-out infinite;',
       '  border-radius:inherit; pointer-events:none;',
       '}',
@@ -124,19 +121,20 @@
     btn.className = 'pr-preview-btn';
     btn.textContent = 'Open in ' + label;
     btn.style.cssText = [
-      'display:block',
-      'padding:10px 18px',
+      'display:inline-block',
+      'padding:5px 12px',
       'background:linear-gradient(135deg, ' + bg + ', ' + bg + 'dd)',
       'color:#fff',
-      'border-radius:12px',
+      'border-radius:6px',
       'text-decoration:none',
       'font-weight:600',
       'cursor:pointer',
-      'font-size:13px',
-      'font-family:system-ui,-apple-system,sans-serif',
+      'font-size:12px',
+      'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif',
       'letter-spacing:0.2px',
-      'text-align:left',
-      'box-shadow:0 2px 8px ' + bg + '44',
+      'line-height:20px',
+      'white-space:nowrap',
+      'box-shadow:0 1px 3px ' + bg + '33',
     ].join(';');
 
     btn.addEventListener('click', function (e) {
@@ -150,6 +148,19 @@
     return btn;
   }
 
+  function findTabNavAnchor() {
+    var nav = document.querySelector('[class*="PageHeader-Navigation"]');
+    if (nav) return nav;
+
+    var tabnavs = document.querySelectorAll('.tabnav, .UnderlineNav');
+    for (var i = 0; i < tabnavs.length; i++) {
+      if (tabnavs[i].textContent.indexOf('Conversation') !== -1) {
+        return tabnavs[i];
+      }
+    }
+    return null;
+  }
+
   function showPrUi(prNumber, filenames) {
     const id = "pr-build-hashes-ui";
     if (document.getElementById(id)) return;
@@ -160,39 +171,33 @@
 
       injectStyles();
 
+      var anchor = findTabNavAnchor();
+      if (!anchor) {
+        waitForTabNav(function () {
+          showPrUi(prNumber, filenames);
+        });
+        return;
+      }
+
       const wrap = document.createElement('div');
       wrap.id = id;
       wrap.style.cssText = [
-        'position:fixed',
-        'top:60px',
-        'right:16px',
-        'z-index:9999',
-        'padding:14px 16px',
-        'background:rgba(30,33,43,0.88)',
-        'backdrop-filter:blur(12px)',
-        '-webkit-backdrop-filter:blur(12px)',
-        'border:1px solid rgba(255,255,255,0.1)',
-        'border-radius:16px',
-        'font-size:13px',
-        'color:#fff',
-        'box-shadow:0 4px 24px rgba(0,0,0,0.25)',
         'display:flex',
-        'flex-direction:column',
+        'align-items:center',
+        'justify-content:flex-end',
         'gap:8px',
+        'padding:8px 0',
       ].join(';');
 
-      // Header text
-      var header = document.createElement('div');
-      header.textContent = 'View PR on';
-      header.style.cssText = [
+      var label = document.createElement('span');
+      label.textContent = 'View PR on:';
+      label.style.cssText = [
         'font-size:12px',
         'font-weight:600',
-        'text-transform:uppercase',
-        'letter-spacing:0.5px',
-        'color:rgba(255,255,255,0.55)',
-        'padding:0 2px 2px',
+        'color:var(--fgColor-muted, #656d76)',
+        'margin-right:4px',
       ].join(';');
-      wrap.appendChild(header);
+      wrap.appendChild(label);
 
       for (var i = 0; i < instances.length; i++) {
         (function (instance) {
@@ -214,8 +219,29 @@
         })(instances[i]);
       }
 
-      document.body.appendChild(wrap);
+      anchor.insertBefore(wrap, anchor.firstChild);
     });
+  }
+
+  function waitForTabNav(callback) {
+    var called = false;
+    var observer = new MutationObserver(function () {
+      if (called) return;
+      if (findTabNavAnchor()) {
+        called = true;
+        observer.disconnect();
+        callback();
+      }
+    });
+    observer.observe(document.body || document.documentElement, {
+      childList: true,
+      subtree: true,
+    });
+    setTimeout(function () {
+      if (!called) {
+        observer.disconnect();
+      }
+    }, 15000);
   }
 
   function run() {
