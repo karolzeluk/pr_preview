@@ -219,7 +219,7 @@
         })(instances[i]);
       }
 
-      anchor.parentElement.insertBefore(wrap, anchor);
+      anchor.insertBefore(wrap, anchor.firstChild);
     });
   }
 
