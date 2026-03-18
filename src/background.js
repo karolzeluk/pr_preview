@@ -1,27 +1,43 @@
 /**
- * Background service worker.
- * Manages per-tab PR associations (persisted in chrome.storage.session so
- * they survive service worker restarts and tab refreshes) and exact-target
- * redirect rules scoped to specific tabs via tabIds condition.
+ * Background script (Chrome service worker / Firefox persistent background).
+ * Manages per-tab PR associations and redirect rules.
  *
- * Uses session-scoped rules (updateSessionRules) because tabIds is only
- * supported on session rules, not dynamic rules.
+ * Chrome: uses chrome.storage.session + declarativeNetRequest session rules.
+ * Firefox: uses in-memory state + webRequest blocking listener.
  */
+/* global IS_FIREFOX */
 (function () {
   var STORAGE_KEY = "prTabs";
 
+  // ---------------------------------------------------------------------------
+  // Firefox in-memory tab state (safe because Firefox background is persistent)
+  // ---------------------------------------------------------------------------
+  var _memoryTabs = {};
+
   function getActiveTabs(callback) {
+    if (IS_FIREFOX) {
+      callback(_memoryTabs);
+      return;
+    }
     chrome.storage.session.get(STORAGE_KEY, function (data) {
       callback((data && data[STORAGE_KEY]) || {});
     });
   }
 
   function setActiveTabs(tabs, callback) {
+    if (IS_FIREFOX) {
+      _memoryTabs = tabs;
+      if (callback) callback();
+      return;
+    }
     var obj = {};
     obj[STORAGE_KEY] = tabs;
     chrome.storage.session.set(obj, callback || function () {});
   }
 
+  // ---------------------------------------------------------------------------
+  // Chrome-only: declarativeNetRequest helpers
+  // ---------------------------------------------------------------------------
   function getSessionRuleIds(callback) {
     chrome.declarativeNetRequest.getSessionRules(function (rules) {
       callback(rules.map(function (r) { return r.id; }));
@@ -41,7 +57,17 @@
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // Redirect rule management
+  // ---------------------------------------------------------------------------
   function rebuildAllRules(callback) {
+    // Firefox: webRequest listener reads _memoryTabs live — nothing to rebuild.
+    if (IS_FIREFOX) {
+      if (callback) callback();
+      return;
+    }
+
+    // Chrome: rebuild declarativeNetRequest session rules.
     getActiveTabs(function (tabs) {
       var allRules = [];
       var ruleId = 1;
@@ -127,7 +153,105 @@
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // Firefox-only: webRequest redirect listener
+  // ---------------------------------------------------------------------------
+  if (IS_FIREFOX) {
+    var RELEASE_RE = /^https:\/\/static\.collibra\.dev\/releases\/[^/]+\/(.+)$/;
+    var RUNTIME_RE = /^https:\/\/static\.collibra\.dev\/releases\/[^/]+\/runtime\.\w+\.js$/;
+    var MAIN_JS_RE = /^https:\/\/static\.collibra\.dev\/releases\/[^/]+\/main\.\w+\.js$/;
+    var MAIN_CSS_RE = /^https:\/\/static\.collibra\.dev\/releases\/[^/]+\/main\.\w+\.css$/;
+
+    browser.webRequest.onBeforeRequest.addListener(
+      function (details) {
+        var tabId = details.tabId;
+        if (tabId < 0) return {};
+        var entry = _memoryTabs[tabId];
+        if (!entry || !entry.pr) return {};
+
+        var url = details.url;
+        var base = "https://static.collibra.dev/pr-releases/" + entry.pr + "/";
+
+        // High-priority exact-filename redirects
+        if (entry.runtimeJs && RUNTIME_RE.test(url)) {
+          return { redirectUrl: base + entry.runtimeJs };
+        }
+        if (entry.mainJs && MAIN_JS_RE.test(url)) {
+          return { redirectUrl: base + entry.mainJs };
+        }
+        if (entry.mainCss && MAIN_CSS_RE.test(url)) {
+          return { redirectUrl: base + entry.mainCss };
+        }
+
+        // Low-priority catch-all for other release assets
+        var m = url.match(RELEASE_RE);
+        if (m) {
+          return { redirectUrl: base + m[1] };
+        }
+
+        return {};
+      },
+      { urls: ["https://static.collibra.dev/releases/*"] },
+      ["blocking"],
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Fetch PR build index.html (runs in background to avoid page CSP)
+  // ---------------------------------------------------------------------------
+  function parseFilenamesFromHtml(html) {
+    var runtimeJs = null;
+    var mainJs = null;
+    var mainCss = null;
+
+    var scriptRe = /<script[^>]+src=["']([^"']+)["']/g;
+    var m;
+    while ((m = scriptRe.exec(html)) !== null) {
+      var filename = m[1].split("/").pop();
+      if (/^runtime\.\w+\.js$/.test(filename)) runtimeJs = filename;
+      else if (/^main\.\w+\.js$/.test(filename)) mainJs = filename;
+    }
+
+    var cssRe = /<link[^>]+href=["']([^"']+)["'][^>]*rel=["']stylesheet["']|<link[^>]+rel=["']stylesheet["'][^>]*href=["']([^"']+)["']/g;
+    while ((m = cssRe.exec(html)) !== null) {
+      var href = m[1] || m[2];
+      var cssFilename = href.split("/").pop();
+      if (/^main\.\w+\.css$/.test(cssFilename)) mainCss = cssFilename;
+    }
+
+    return { runtimeJs: runtimeJs, mainJs: mainJs, mainCss: mainCss };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Message handling (shared)
+  // ---------------------------------------------------------------------------
   chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+    if (msg.type === "fetchPrBuild") {
+      var prNum = msg.pr;
+      if (!prNum) {
+        sendResponse({ filenames: null });
+        return true;
+      }
+      var url = "https://static.collibra.dev/pr-releases/" + prNum + "/index.html";
+      fetch(url)
+        .then(function (res) {
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          return res.text();
+        })
+        .then(function (html) {
+          var filenames = parseFilenamesFromHtml(html);
+          if (filenames.runtimeJs || filenames.mainJs || filenames.mainCss) {
+            sendResponse({ filenames: filenames });
+          } else {
+            sendResponse({ filenames: null });
+          }
+        })
+        .catch(function () {
+          sendResponse({ filenames: null });
+        });
+      return true;
+    }
+
     if (msg.type === "openPrBuild") {
       var pr = msg.pr;
       if (!pr || (!msg.runtimeJs && !msg.mainJs && !msg.mainCss)) {
@@ -203,6 +327,9 @@
     return false;
   });
 
+  // ---------------------------------------------------------------------------
+  // Tab cleanup
+  // ---------------------------------------------------------------------------
   chrome.tabs.onRemoved.addListener(function (tabId) {
     getActiveTabs(function (tabs) {
       if (tabs[tabId]) {
@@ -213,8 +340,15 @@
     });
   });
 
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
   chrome.runtime.onInstalled.addListener(function () {
-    removeAllSessionRules();
-    setActiveTabs({});
+    if (IS_FIREFOX) {
+      _memoryTabs = {};
+    } else {
+      removeAllSessionRules();
+      setActiveTabs({});
+    }
   });
 })();

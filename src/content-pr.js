@@ -64,6 +64,21 @@
   }
 
   function fetchPrBuild(prNumber, callback) {
+    var isFirefox = typeof browser !== 'undefined' && !!browser.runtime;
+    if (isFirefox) {
+      // Firefox content script fetches are subject to page CSP, so delegate to background
+      chrome.runtime.sendMessage(
+        { type: "fetchPrBuild", pr: prNumber },
+        function (response) {
+          if (chrome.runtime.lastError || !response || !response.filenames) {
+            callback(null);
+          } else {
+            callback(response.filenames);
+          }
+        },
+      );
+      return;
+    }
     var url =
       "https://static.collibra.dev/pr-releases/" + prNumber + "/index.html";
     fetch(url)
