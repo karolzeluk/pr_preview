@@ -142,6 +142,7 @@
           getActiveTabs(function (tabs) {
             tabs[tabId] = {
               pr: pr,
+              title: msg.title || '',
               color: msg.color || "#0969da",
               runtimeJs: msg.runtimeJs,
               mainJs: msg.mainJs,
@@ -171,7 +172,7 @@
       getActiveTabs(function (tabs) {
         var entry = tabs[tabId];
         if (entry && entry.pr) {
-          sendResponse({ pr: entry.pr, color: entry.color || null });
+          sendResponse({ pr: entry.pr, title: entry.title || '', color: entry.color || null });
         } else {
           sendResponse({ pr: null });
         }

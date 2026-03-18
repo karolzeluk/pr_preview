@@ -27,6 +27,13 @@
     if (styles) styles.remove();
   }
 
+  function getPrTitle() {
+    var el = document.querySelector('.js-issue-title');
+    if (el) return el.textContent.trim();
+    var m = document.title.match(/^(.+?)(?:\s+by .+?)?\s+·\s+Pull Request/);
+    return m ? m[1].trim() : '';
+  }
+
   function getPrNumberFromPathname() {
     const m = window.location.pathname.match(
       /\/collibra\/frontend\/pull\/(\d+)/,
@@ -117,7 +124,7 @@
   function createButton(label, color, onClick) {
     var bg = color || '#0969da';
 
-    var btn = document.createElement('a');
+    var btn = document.createElement('button');
     btn.className = 'pr-preview-btn';
     btn.textContent = 'Open in ' + label;
     btn.style.cssText = [
@@ -125,8 +132,8 @@
       'padding:5px 12px',
       'background:linear-gradient(135deg, ' + bg + ', ' + bg + 'dd)',
       'color:#fff',
+      'border:none',
       'border-radius:6px',
-      'text-decoration:none',
       'font-weight:600',
       'cursor:pointer',
       'font-size:12px',
@@ -139,6 +146,7 @@
 
     btn.addEventListener('click', function (e) {
       e.preventDefault();
+      e.stopPropagation();
       if (!chrome.runtime.id) {
         window.location.reload();
         return;
@@ -206,6 +214,7 @@
               {
                 type: "openPrBuild",
                 pr: prNumber,
+                title: getPrTitle(),
                 infraUrl: instance.url,
                 color: instance.color || "#0969da",
                 runtimeJs: filenames.runtimeJs,
