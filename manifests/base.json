@@ -8,11 +8,6 @@
     "48": "pr_preview.png",
     "128": "pr_preview.png"
   },
-  "permissions": [
-    "storage",
-    "declarativeNetRequest",
-    "declarativeNetRequestWithHostAccess"
-  ],
   "host_permissions": [
     "https://github.com/collibra/frontend/*",
     "https://*.collibra.dev/*",
@@ -36,9 +31,6 @@
       "run_at": "document_start"
     }
   ],
-  "background": {
-    "service_worker": "background.js"
-  },
   "action": {
     "default_popup": "popup.html",
     "default_icon": {

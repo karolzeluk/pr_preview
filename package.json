@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "echo No build required for this extension"
+    "build": "node scripts/build.js",
+    "build:chrome": "node scripts/build.js chrome",
+    "build:firefox": "node scripts/build.js firefox",
+    "package:chrome": "cd dist/chrome && zip -r ../pr-preview-chrome.zip .",
+    "package:firefox": "cd dist/firefox && zip -r ../pr-preview-firefox.zip ."
   }
 }
