@@ -39,7 +39,7 @@
         margin: 0;
         padding: 0;
         overflow: hidden;
-        width: 420px;
+        width: 640px;
       }
 
       body {
@@ -203,6 +203,35 @@
       .instance-row .url-input {
         flex: 1;
         min-width: 0;
+      }
+
+      .drag-handle {
+        cursor: grab;
+        color: #b0b8c8;
+        font-size: 16px;
+        line-height: 1;
+        padding: 4px 2px;
+        user-select: none;
+        transition: color 0.15s ease;
+        display: flex;
+        align-items: center;
+      }
+
+      .drag-handle:hover {
+        color: #5a6070;
+      }
+
+      .drag-handle:active {
+        cursor: grabbing;
+      }
+
+      .instance-row.dragging {
+        opacity: 0.4;
+      }
+
+      .instance-row.drag-over {
+        border-color: #0969da;
+        box-shadow: 0 0 0 2px rgba(9, 105, 218, 0.2);
       }
 
       .instance-row .remove-btn {
