@@ -66,9 +66,75 @@
     return wrap;
   }
 
+  // --- Drag-and-drop state ---
+  var dragSrcRow = null;
+
+  function handleDragStart(e) {
+    dragSrcRow = this.closest('.instance-row');
+    dragSrcRow.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', ''); // required for Firefox
+  }
+
+  function handleDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    var row = this.closest ? this.closest('.instance-row') : this;
+    if (row && row !== dragSrcRow) {
+      row.classList.add('drag-over');
+    }
+  }
+
+  function handleDragLeave() {
+    var row = this.closest ? this.closest('.instance-row') : this;
+    if (row) row.classList.remove('drag-over');
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+    var targetRow = this.closest ? this.closest('.instance-row') : this;
+    if (targetRow) targetRow.classList.remove('drag-over');
+    if (!dragSrcRow || targetRow === dragSrcRow) return;
+
+    // Determine order based on DOM position
+    var rows = Array.prototype.slice.call(container.querySelectorAll('.instance-row'));
+    var srcIdx = rows.indexOf(dragSrcRow);
+    var tgtIdx = rows.indexOf(targetRow);
+    if (srcIdx < tgtIdx) {
+      container.insertBefore(dragSrcRow, targetRow.nextSibling);
+    } else {
+      container.insertBefore(dragSrcRow, targetRow);
+    }
+  }
+
+  function handleDragEnd() {
+    dragSrcRow && dragSrcRow.classList.remove('dragging');
+    var allRows = container.querySelectorAll('.instance-row');
+    for (var i = 0; i < allRows.length; i++) {
+      allRows[i].classList.remove('drag-over');
+    }
+    dragSrcRow = null;
+  }
+
   function createInstanceRow(instance) {
     var row = document.createElement('div');
     row.className = 'instance-row';
+    // Drag handle — only the handle makes the row draggable
+    var handle = document.createElement('span');
+    handle.className = 'drag-handle';
+    handle.textContent = '\u2630'; // hamburger icon ☰
+    handle.title = 'Drag to reorder';
+
+    // Enable draggable only while pressing on the handle
+    handle.addEventListener('mousedown', function () { row.draggable = true; });
+    row.addEventListener('dragend', function () { row.draggable = false; });
+
+    // Drag events on the row
+    row.addEventListener('dragstart', handleDragStart);
+    row.addEventListener('dragover', handleDragOver);
+    row.addEventListener('dragleave', handleDragLeave);
+    row.addEventListener('drop', handleDrop);
+    row.addEventListener('dragend', handleDragEnd);
 
     var colorPicker = createColorPicker(instance && instance.color);
 
@@ -76,12 +142,14 @@
     labelInput.type = 'text';
     labelInput.className = 'label-input';
     labelInput.placeholder = 'Label';
+    labelInput.maxLength = 256;
     labelInput.value = (instance && instance.label) || '';
 
     var urlInput = document.createElement('input');
     urlInput.type = 'text';
     urlInput.className = 'url-input';
     urlInput.placeholder = 'https://infra-main.collibra.dev';
+    urlInput.maxLength = 256;
     urlInput.value = (instance && instance.url) || '';
 
     var removeBtn = document.createElement('button');
@@ -93,6 +161,7 @@
       updateAddButton();
     });
 
+    row.appendChild(handle);
     row.appendChild(colorPicker);
     row.appendChild(labelInput);
     row.appendChild(urlInput);
