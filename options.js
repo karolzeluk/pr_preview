@@ -66,6 +66,15 @@
     return wrap;
   }
 
+  function extractCoreName(url) {
+    try {
+      var hostname = new URL(url).hostname;
+      return hostname.split('.')[0] || '';
+    } catch (e) {
+      return '';
+    }
+  }
+
   // --- Drag-and-drop state ---
   var dragSrcRow = null;
 
@@ -119,6 +128,7 @@
   function createInstanceRow(instance) {
     var row = document.createElement('div');
     row.className = 'instance-row';
+
     // Drag handle — only the handle makes the row draggable
     var handle = document.createElement('span');
     handle.className = 'drag-handle';
@@ -138,6 +148,13 @@
 
     var colorPicker = createColorPicker(instance && instance.color);
 
+    var urlInput = document.createElement('input');
+    urlInput.type = 'text';
+    urlInput.className = 'url-input';
+    urlInput.placeholder = 'https://infra-main.collibra.dev';
+    urlInput.maxLength = 256;
+    urlInput.value = (instance && instance.url) || '';
+
     var labelInput = document.createElement('input');
     labelInput.type = 'text';
     labelInput.className = 'label-input';
@@ -145,12 +162,16 @@
     labelInput.maxLength = 256;
     labelInput.value = (instance && instance.label) || '';
 
-    var urlInput = document.createElement('input');
-    urlInput.type = 'text';
-    urlInput.className = 'url-input';
-    urlInput.placeholder = 'https://infra-main.collibra.dev';
-    urlInput.maxLength = 256;
-    urlInput.value = (instance && instance.url) || '';
+    // Auto-detect label from URL: extract the first subdomain segment
+    var labelManuallyEdited = !!(instance && instance.label && instance.url && instance.label !== extractCoreName(instance.url));
+    urlInput.addEventListener('input', function () {
+      if (!labelManuallyEdited) {
+        labelInput.value = extractCoreName(urlInput.value);
+      }
+    });
+    labelInput.addEventListener('input', function () {
+      labelManuallyEdited = true;
+    });
 
     var removeBtn = document.createElement('button');
     removeBtn.type = 'button';
@@ -163,8 +184,8 @@
 
     row.appendChild(handle);
     row.appendChild(colorPicker);
-    row.appendChild(labelInput);
     row.appendChild(urlInput);
+    row.appendChild(labelInput);
     row.appendChild(removeBtn);
     return row;
   }
